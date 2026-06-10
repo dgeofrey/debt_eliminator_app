@@ -1,0 +1,53 @@
+version: '3.9'
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: debt_eliminator_db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpass}
+      MYSQL_USER: ${DB_USER:-debtuser}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-debtpass}
+      MYSQL_DATABASE: ${DB_NAME:-debt_eliminator}
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "${DB_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "${DB_USER:-debtuser}", "-p${DB_PASSWORD:-debtpass}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: debt_eliminator_app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 7070
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: ${DB_USER:-debtuser}
+      DB_PASSWORD: ${DB_PASSWORD:-debtpass}
+      DB_NAME: ${DB_NAME:-debt_eliminator}
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL:-dgeofrey@admin.local}
+      SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD:-YourSuperAdminPassword!}
+      SUPER_ADMIN_NAME: ${SUPER_ADMIN_NAME:-David Geofrey}
+      # Geo (AI chat) is disabled. To enable later, see README.
+      GEO_ENABLED: "false"
+    ports:
+      - "${APP_PORT:-7070}:7070"
+
+volumes:
+  mysql_data:
